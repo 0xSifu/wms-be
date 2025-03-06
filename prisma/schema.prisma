@@ -1,0 +1,141 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String       @id @default(uuid())
+  username         String
+  email            String       @unique
+  password         String
+  lastLogin        DateTime?    @map("last_login")
+  isActive         Boolean      @default(true) @map("is_active")
+  isDelete         Boolean      @default(false) @map("is_delete")
+  ipAddress        String?      @map("ip_address")
+  log              Json[]
+  isAccountAdmin   Boolean      @default(false) @map("is_account_admin")
+  isAdmin          Boolean      @default(false) @map("is_admin")
+  status           UserStatus   @default(ACTIVE)
+  language         Language     @default(en)
+  detail           UserDetail?
+  createdAt        DateTime     @default(now()) @map("created_at")
+  updatedAt        DateTime     @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model UserDetail {
+  id           String   @id @default(uuid())
+  userId       String   @unique @map("user_id")
+  user         User     @relation(fields: [userId], references: [id])
+  displayName  String   @map("display_name")
+  gender       String
+  birthday     DateTime
+  horoscope    String
+  zodiac       String
+  height       Int
+  weight       Int
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("user_details")
+}
+
+model Transaction {
+  id        String    @id @default(uuid())
+  epc       String   
+  rssi      String   
+  timestamp DateTime
+  mode      String    @default("single")
+  tag       Tag?      @relation(fields: [tagId], references: [id])
+  tagId     String?   @map("tag_id")
+  product   Product?  @relation(fields: [productId], references: [id])
+  productId String?   @map("product_id")
+  batchId   String?   @map("batch_id")
+  batch     Batch?    @relation(fields: [batchId], references: [id])
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@map("transactions")
+}
+
+model Tag {
+  id            String        @id @default(uuid())
+  tag           String        @unique @map("tag") // EPC value
+  deviceNo      Int          @map("device_no")
+  antennaNo     Int          @map("antenna_no")
+  timestamp     DateTime     @map("timestamp")
+  scanCount     Int          @map("scan_count")
+  tagName       String?      @map("tag_name")
+  quantity      Int?         @map("quantity")
+  expiredDate   DateTime?    @map("expired_date")
+  transactions  Transaction[]
+  products      Product[]
+  processed     Boolean      @default(false)
+
+  @@map("tags")
+}
+
+model Batch {
+  id           String        @id @default(uuid())
+  name         String        @map("name")
+  description  String?
+  status       BatchStatus   @default(PENDING)
+  transactions Transaction[]
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@map("batches")
+}
+
+model Product {
+  id          String        @id @default(uuid())
+  productName String        @map("product_name")
+  productCode String        @map("product_code")
+  productType String        @map("product_type")
+  unit        Int          @map("unit")
+  tagId       String       @map("tag_id")
+  tag         Tag          @relation(fields: [tagId], references: [id])
+  transactions Transaction[]
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("products")
+}
+
+enum Language {
+  cz
+  de
+  en
+  uk
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  PENDING
+}
+
+enum BatchStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+enum Role {
+  ADMIN
+  USER
+  GUEST
+}
