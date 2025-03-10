@@ -2,7 +2,7 @@
 
 request_count=1000
 
-url="http://localhost:9001/api/v1/tag/add"
+url="http://103.174.115.64:9001/api/v1/tag/add"
 
 bearer_token="Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjEiLCJ0b2tlblR5cGUiOiJBY2Nlc3NUb2tlbiIsImlhdCI6MTczMTk0NTEwMywiZXhwIjoxNzMyMDMxNTAzfQ.H2NbkUO-PV0pZHi5_liyZeEYjpv_gm1A_uXakpo-Ijk"
 

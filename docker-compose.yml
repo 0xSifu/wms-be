@@ -1,22 +1,22 @@
 version: '3.8'
 
 services:
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    ports:
-      - "9001:9001"
-    environment:
-      - DATABASE_URL=postgresql://postgres:P@ssw0rd@postgres:5432/wms-pmi?schema=public
-      - RABBITMQ_URL=amqp://admin:master123@rabbitmq:5672
-    depends_on:
-      - postgres
-      - redis
-      - rabbitmq
-    networks:
-      - backend
-    restart: always
+  # backend:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "9001:9001"
+  #   environment:
+  #     - DATABASE_URL=postgresql://postgres:P@ssw0rd@postgres:5432/wms-pmi?schema=public
+  #     - RABBITMQ_URL=amqp://admin:master123@rabbitmq:5672
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #     - rabbitmq
+  #   networks:
+  #     - backend
+  #   restart: always
 
   postgres:  
     image: postgres:latest

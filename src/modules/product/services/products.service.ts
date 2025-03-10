@@ -7,6 +7,7 @@ import { FilterProductDto } from '../dto/filter-product.dto';
 import { Product } from '@prisma/client';
 import PusherClient from 'pusher-js';
 import Pusher from 'pusher';
+import { StatisticsResponseDto } from '../dto/statistics-response.dto';
 
 @Injectable()
 export class ProductsService implements OnModuleInit {
@@ -338,5 +339,233 @@ export class ProductsService implements OnModuleInit {
     await this.prismaService.product.delete({
       where: { id },
     });
+  }
+
+  /**
+   * Get comprehensive statistics about products and tags
+   * @returns Extended statistics including product, tag, and transaction data
+   */
+  async getStatistics(): Promise<StatisticsResponseDto> {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    // Get the start of today
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    // Get the start of 7 days ago
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const [
+      totalProducts,
+      totalTags,
+      tagsWithProducts,
+      totalTransactions,
+      productsWithTags,
+      transactionsLast24Hours,
+      newTagsLast24Hours,
+      lastScan,
+      mostScannedTag,
+      productWithMostTags,
+      // New queries for chart data
+      dailyTransactionCounts,
+      hourlyTransactionCounts,
+      productTypes,
+      tagScans
+    ] = await Promise.all([
+      // Get total number of products
+      this.prismaService.product.count(),
+      
+      // Get total number of tags
+      this.prismaService.tag.count(),
+      
+      // Get number of tags that are linked to products
+      this.prismaService.tag.count({
+        where: {
+          products: {
+            some: {}
+          }
+        }
+      }),
+
+      // Get total number of transactions
+      this.prismaService.transaction.count(),
+
+      // Get number of products that have tags
+      this.prismaService.product.count(),  // Since tagId is required, all products have tags
+
+      // Get transactions in last 24 hours
+      this.prismaService.transaction.count({
+        where: {
+          timestamp: {
+            gte: yesterday
+          }
+        }
+      }),
+
+      // Get new tags in last 24 hours
+      this.prismaService.tag.count({
+        where: {
+          timestamp: {
+            gte: yesterday
+          }
+        }
+      }),
+
+      // Get most recent scan
+      this.prismaService.transaction.findFirst({
+        orderBy: {
+          timestamp: 'desc'
+        },
+        select: {
+          timestamp: true
+        }
+      }),
+
+      // Get most scanned tag
+      this.prismaService.tag.findFirst({
+        orderBy: {
+          scanCount: 'desc'
+        },
+        select: {
+          tag: true,
+          scanCount: true
+        }
+      }),
+
+      // Get product with most transactions
+      this.prismaService.product.findFirst({
+        select: {
+          productName: true,
+          _count: {
+            select: {
+              transactions: true
+            }
+          }
+        },
+        orderBy: {
+          transactions: {
+            _count: 'desc'
+          }
+        }
+      }),
+
+      // Get daily transaction counts for the last 7 days
+      this.prismaService.transaction.groupBy({
+        by: ['timestamp'],
+        _count: {
+          id: true
+        },
+        where: {
+          timestamp: {
+            gte: sevenDaysAgo
+          }
+        },
+        orderBy: {
+          timestamp: 'asc'
+        }
+      }),
+
+      // Get hourly transaction counts for today
+      this.prismaService.transaction.groupBy({
+        by: ['timestamp'],
+        _count: {
+          id: true
+        },
+        where: {
+          timestamp: {
+            gte: startOfToday
+          }
+        },
+        orderBy: {
+          timestamp: 'asc'
+        }
+      }),
+
+      // Get product type distribution
+      this.prismaService.product.groupBy({
+        by: ['productType'],
+        _count: {
+          id: true
+        }
+      }),
+
+      // Get tag scan trends
+      this.prismaService.transaction.groupBy({
+        by: ['timestamp'],
+        _count: {
+          id: true
+        },
+        where: {
+          timestamp: {
+            gte: startOfToday
+          }
+        },
+        orderBy: {
+          timestamp: 'asc'
+        }
+      })
+    ]);
+
+    // Calculate average scans per tag
+    const averageScansPerTag = totalTags > 0
+      ? (await this.prismaService.tag.aggregate({
+          _avg: {
+            scanCount: true
+          }
+        }))._avg.scanCount || 0
+      : 0;
+
+    // Process daily transactions for chart
+    const dailyTransactions = dailyTransactionCounts.map(day => ({
+      label: day.timestamp.toISOString().split('T')[0],
+      value: day._count.id
+    }));
+
+    // Process hourly transactions for chart
+    const hourlyTransactions = hourlyTransactionCounts.map(hour => ({
+      label: hour.timestamp.getHours().toString().padStart(2, '0') + ':00',
+      value: hour._count.id
+    }));
+
+    // Process product type distribution for chart
+    const productTypeDistribution = productTypes.map(type => ({
+      label: type.productType,
+      value: type._count.id
+    }));
+
+    // Process tag scan trends for chart
+    const tagScanTrends = tagScans.map(scan => ({
+      label: scan.timestamp.getHours().toString().padStart(2, '0') + ':00',
+      value: scan._count.id
+    }));
+
+    return {
+      totalProducts,
+      totalTagsScanned: totalTags,
+      totalTagsUnsync: totalTags - tagsWithProducts,
+      totalTransactions,
+      productsWithTags: totalProducts,  // All products have tags
+      productsWithoutTags: 0,  // No products can exist without tags
+      averageScansPerTag,
+      lastScanTimestamp: lastScan?.timestamp || null,
+      mostScannedTag: mostScannedTag ? {
+        epc: mostScannedTag.tag,
+        scanCount: mostScannedTag.scanCount
+      } : null,
+      productWithMostTags: productWithMostTags ? {
+        productName: productWithMostTags.productName,
+        tagCount: productWithMostTags._count.transactions
+      } : null,
+      transactionsLast24Hours,
+      newTagsLast24Hours,
+      // Add chart data
+      dailyTransactions,
+      hourlyTransactions,
+      productTypeDistribution,
+      tagScanTrends
+    };
   }
 }
